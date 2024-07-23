@@ -55,6 +55,7 @@ namespace rtde = urcl::rtde_interface;
 namespace ur_robot_driver
 {
 
+
 URPositionHardwareInterface::~URPositionHardwareInterface()
 {
   // If the controller manager is shutdown via Ctrl + C the on_deactivate methods won't be called.
@@ -65,9 +66,20 @@ URPositionHardwareInterface::~URPositionHardwareInterface()
 hardware_interface::CallbackReturn
 URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& system_info)
 {
+  std::thread freedrive_node_thread([](std::shared_ptr<rclcpp::Node> node) {
+    URPositionHardwareInterface::listen_freedrive_client(node);
+  }, freedrive_node_);
+  freedrive_node_thread.detach(); // Distacca il thread
+
+  freedrive_service_ = freedrive_node_->create_service<std_srvs::srv::Empty>(
+    "~/enable_freedrive",
+    std::bind(&URPositionHardwareInterface::handleFreedrive, this, std::placeholders::_1, std::placeholders::_2)
+  );
+
   if (hardware_interface::SystemInterface::on_init(system_info) != hardware_interface::CallbackReturn::SUCCESS) {
     return hardware_interface::CallbackReturn::ERROR;
   }
+
 
   info_ = system_info;
 
@@ -85,6 +97,9 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
   start_modes_ = {};
   position_controller_running_ = false;
   velocity_controller_running_ = false;
+  freedrive_running_ = false;
+  freedrive_start_ = false;
+  freedrive_stop_ = false;  
   runtime_state_ = static_cast<uint32_t>(rtde::RUNTIME_STATE::STOPPED);
   pausing_state_ = PausingState::RUNNING;
   pausing_ramp_up_increment_ = 0.01;
@@ -625,16 +640,17 @@ hardware_interface::return_type URPositionHardwareInterface::write(const rclcpp:
   if ((runtime_state_ == static_cast<uint32_t>(rtde::RUNTIME_STATE::PLAYING) ||
        runtime_state_ == static_cast<uint32_t>(rtde::RUNTIME_STATE::PAUSING)) &&
       robot_program_running_ && (!non_blocking_read_ || packet_read_)) {
+        
     if (position_controller_running_) {
       ur_driver_->writeJointCommand(urcl_position_commands_, urcl::comm::ControlMode::MODE_SERVOJ, receive_timeout_);
-
     } else if (velocity_controller_running_) {
       ur_driver_->writeJointCommand(urcl_velocity_commands_, urcl::comm::ControlMode::MODE_SPEEDJ, receive_timeout_);
-
-    } else {
+    } else if (freedrive_running_) {
+      ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_NOOP);
+    }
+    else {
       ur_driver_->writeKeepalive();
     }
-
     packet_read_ = false;
   }
 
@@ -757,6 +773,20 @@ void URPositionHardwareInterface::updateNonDoubleValues()
   robot_program_running_copy_ = robot_program_running_ ? 1.0 : 0.0;
 }
 
+void URPositionHardwareInterface::handleFreedrive(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                       std::shared_ptr<std_srvs::srv::Empty::Response> response)
+{
+  freedrive_running_ = !freedrive_running_;
+
+  if(freedrive_running_){
+    ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_START);
+    RCLCPP_INFO(rclcpp::get_logger("hardware_interface"), "Freedrive mode: ENABLED!");
+  }else{
+    ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
+    RCLCPP_INFO(rclcpp::get_logger("hardware_interface"), "Freedrive mode: DISABLED!");
+  }
+}
+
 void URPositionHardwareInterface::transformForceTorque()
 {
   // imported from ROS1 driver - hardware_interface.cpp#L867-L876
@@ -792,6 +822,19 @@ void URPositionHardwareInterface::extractToolPose()
   tcp_transform_.transform.translation.z = urcl_tcp_pose_[2];
 
   tcp_transform_.transform.rotation = tf2::toMsg(rotation);
+}
+
+void URPositionHardwareInterface::listen_freedrive_client(std::shared_ptr<rclcpp::Node> node)
+{
+  if (!rclcpp::ok()) {
+    rclcpp::init(0, nullptr);
+  }
+
+  // Spin il nodo finché è attivo
+  rclcpp::spin(node);
+
+  // Shutdown rclcpp una volta terminato lo spin
+  rclcpp::shutdown();
 }
 
 hardware_interface::return_type URPositionHardwareInterface::prepare_command_mode_switch(
@@ -880,6 +923,11 @@ hardware_interface::return_type URPositionHardwareInterface::perform_command_mod
   return ret_val;
 }
 }  // namespace ur_robot_driver
+
+
+
+
+
 
 #include "pluginlib/class_list_macros.hpp"
 

@@ -45,6 +45,9 @@
 #include <vector>
 #include <limits>
 
+// ros2 service
+#include "rclcpp/rclcpp.hpp"
+#include "std_srvs/srv/empty.hpp"
 // ros2_control hardware_interface
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
@@ -89,6 +92,7 @@ class URPositionHardwareInterface : public hardware_interface::SystemInterface
 {
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(URPositionHardwareInterface);
+
   virtual ~URPositionHardwareInterface();
 
   hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo& system_info) final;
@@ -121,9 +125,21 @@ public:
   static constexpr double NO_NEW_CMD_ = std::numeric_limits<double>::quiet_NaN();
 
   void asyncThread();
+private:
+
+  std::shared_ptr<rclcpp::Node> freedrive_node_ = rclcpp::Node::make_shared("hardware_interface");
+
+  void handleFreedrive(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+                       std::shared_ptr<std_srvs::srv::Empty::Response> response);
+
+  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr freedrive_service_;
+
+  static void listen_freedrive_client(std::shared_ptr<rclcpp::Node> node);
 
 protected:
   template <typename T>
+
+
   void readData(const std::unique_ptr<urcl::rtde_interface::DataPackage>& data_pkg, const std::string& var_name,
                 T& data);
   template <typename T, size_t N>
@@ -221,6 +237,9 @@ protected:
   std::vector<std::string> start_modes_;
   bool position_controller_running_;
   bool velocity_controller_running_;
+  bool freedrive_running_;
+  bool freedrive_start_;
+  bool freedrive_stop_;
 
   std::unique_ptr<urcl::UrDriver> ur_driver_;
   std::shared_ptr<std::thread> async_thread_;
