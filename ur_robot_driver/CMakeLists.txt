@@ -90,18 +90,6 @@ add_executable(freedrive_node
 target_link_libraries(freedrive_node ${catkin_LIBRARIES} ur_client_library::urcl)
 ament_target_dependencies(freedrive_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
-add_executable(activate_client
-  src/activate_client.cpp
-)
-target_link_libraries(activate_client ${catkin_LIBRARIES} ur_client_library::urcl)
-ament_target_dependencies(activate_client ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
-
-add_executable(ros2_server_test
-  src/ros2_server_test.cpp
-)
-target_link_libraries(ros2_server_test ${catkin_LIBRARIES} ur_client_library::urcl)
-ament_target_dependencies(ros2_server_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
-
 #
 # controller_stopper_node
 #
@@ -117,7 +105,7 @@ add_executable(urscript_interface
 ament_target_dependencies(urscript_interface ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 install(
-  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node activate_client ros2_server_test
+  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
