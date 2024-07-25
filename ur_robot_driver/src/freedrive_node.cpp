@@ -7,7 +7,10 @@
 #include "controller_manager_msgs/msg/controller_state.hpp"
 #include "controller_manager_msgs/srv/list_controllers.hpp"
 #include "controller_manager_msgs/srv/switch_controller.hpp"
+#include "ur_dashboard_msgs/msg/robot_mode.hpp"
+#include "ur_dashboard_msgs/msg/robot_freedrive_state.hpp"
 
+#include "std_msgs/msg/bool.hpp" 
 #include "std_srvs/srv/empty.hpp"
 
 using namespace std::chrono_literals;
@@ -21,9 +24,9 @@ void enable_freedrive_callback(const std::shared_ptr<std_srvs::srv::Empty::Reque
   new_state_ = true;
   
   if(old_state == 1){
-    state = 2;
+    state = 2; // enable freedrive
   }else if(old_state == 2){
-    state = 1;
+    state = 1; // disable freedrive
   }
   old_state = state;
 }
@@ -60,7 +63,11 @@ int main(int argc, char **argv)
   // ROS2 Node initialization
   rclcpp::init(argc, argv);
   auto node = std::make_shared<rclcpp::Node>("freedrive_manager");
-  
+
+  // ROS2 Publisher
+  auto robot_state_pub = node->create_publisher<ur_dashboard_msgs::msg::RobotFreedriveState>("~/freedrive_state", 10);
+  auto freedrive_state_msg = ur_dashboard_msgs::msg::RobotFreedriveState();
+
   // ROS2 Service Servers
   rclcpp::Service<std_srvs::srv::Empty>::SharedPtr service =
     node->create_service<std_srvs::srv::Empty>("~/enable_freedrive", &enable_freedrive_callback);
@@ -76,13 +83,11 @@ int main(int argc, char **argv)
   auto switch_request           = std::make_shared<controller_manager_msgs::srv::SwitchController::Request>();
   auto freedrive_request        = std::make_shared<std_srvs::srv::Empty::Request>();
 
-
-
-  while(rclcpp::ok()){
+  while (rclcpp::ok()) {
     switch (state) {
       case 0:
       {
-        if(new_state_){
+        if (new_state_) {
           RCLCPP_INFO(node->get_logger(), "Idle state: waiting request to enable freedrive mode");
           new_state_ = false;
           controller_list_response.controller.clear();
@@ -91,7 +96,7 @@ int main(int argc, char **argv)
       }
       case 1:
       {
-        if(new_state_){
+        if (new_state_) {
           RCLCPP_INFO(node->get_logger(), "ENABLE Request received: disabling control and launching freedrive mode");
           new_state_ = false;
         }
@@ -113,23 +118,20 @@ int main(int argc, char **argv)
           std::cout << "Listing controllers:\n";
           // Add all the controllers apart from joint_state_broadcaster to the switch controller request
           for (const auto& controller : controller_list_response.controller) {
-            if(controller.name == "joint_state_broadcaster"){
-              RCLCPP_WARN(node->get_logger(), "Skipping deactivation of joint_state_broadcaster");  
+            if (controller.name == "joint_state_broadcaster") {
+              RCLCPP_WARN(node->get_logger(), "Skipping deactivation of joint_state_broadcaster");
               continue;
             }
-            // RCLCPP_INFO(node->get_logger(), "Name: %s", controller.name.c_str());
-            // RCLCPP_INFO(node->get_logger(), "State: %s", controller.state.c_str());
-            // RCLCPP_INFO(node->get_logger(), "Type: %s", controller.type.c_str());
 
             // If the controller is active, prepare to stop it
             if (controller.state == "active") {
-              switch_request->deactivate_controllers.push_back(controller.name);  // Usa deactivate_controllers
-              switch_request->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT; 
+              switch_request->deactivate_controllers.push_back(controller.name);  // Use deactivate_controllers
+              switch_request->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT;
             }
           }
 
           // Send switch_controller request to deactivate everything apart joint_state_broadcaster
-          if(switch_request->deactivate_controllers.size() != 0){
+          if (switch_request->deactivate_controllers.size() != 0) {
             auto switch_response_future = switch_controller_client_->async_send_request(switch_request);
             if (rclcpp::spin_until_future_complete(node, switch_response_future) == rclcpp::FutureReturnCode::SUCCESS) {
               auto switch_response = switch_response_future.get();
@@ -143,10 +145,10 @@ int main(int argc, char **argv)
               return 1;
             }
           } else {
-            RCLCPP_WARN(node->get_logger(), "switch_request has no controller to deactivate!");  
+            RCLCPP_WARN(node->get_logger(), "switch_request has no controller to deactivate!");
           }
 
-          // Wait for list_controllers service to become available
+          // Wait for hw_freedrive_client service to become available
           while (!hw_freedrive_client->wait_for_service(1s)) {
             if (!rclcpp::ok()) {
               RCLCPP_ERROR(node->get_logger(), "Interrupted while waiting for the service. Exiting.");
@@ -165,7 +167,6 @@ int main(int argc, char **argv)
             return 1;
           }
 
-
         } else {
           RCLCPP_ERROR(node->get_logger(), "Failed to call service list_controllers");
           return 1;
@@ -173,10 +174,10 @@ int main(int argc, char **argv)
         state = 0;
         break;
       }
-      // Disable freedrive mode 
+      // Disable freedrive mode
       case 2:
       {
-        if(new_state_){
+        if (new_state_) {
           RCLCPP_INFO(node->get_logger(), "DISABLE Request received: disabling freedrive mode, enabling back the controllers");
           new_state_ = false;
         }
@@ -198,15 +199,15 @@ int main(int argc, char **argv)
           RCLCPP_ERROR(node->get_logger(), "Failed to disable freedrive mode");
           return 1;
         }
-        
+
         std::cout << "------------------------------------------------------------" << std::endl;
         auto temp_switch_request = std::make_shared<controller_manager_msgs::srv::SwitchController::Request>();
-        temp_switch_request->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT; 
+        temp_switch_request->strictness = controller_manager_msgs::srv::SwitchController::Request::BEST_EFFORT;
 
         for (const auto& controller : switch_request->deactivate_controllers) {
           temp_switch_request->activate_controllers.push_back(controller);
           print_switch_request(temp_switch_request);
-          
+
           auto temp_switch_response_future = switch_controller_client_->async_send_request(temp_switch_request);
           if (rclcpp::spin_until_future_complete(node, temp_switch_response_future) == rclcpp::FutureReturnCode::SUCCESS) {
             auto switch_response = temp_switch_response_future.get();
@@ -227,6 +228,18 @@ int main(int argc, char **argv)
         state = 0;
         break;
       }
+    }
+
+    // Create and publish a RobotFreedriveState message
+    freedrive_state_msg.state = old_state;
+    if(old_state == 1){
+      freedrive_state_msg.message = "FREEDRIVE";
+      robot_state_pub->publish(freedrive_state_msg);
+    }else if (old_state == 2){
+      freedrive_state_msg.message = "RUNNING";
+      robot_state_pub->publish(freedrive_state_msg);
+    }else{
+      RCLCPP_WARN(node->get_logger(), "Robot not ready!");
     }
 
     rclcpp::spin_some(node);
