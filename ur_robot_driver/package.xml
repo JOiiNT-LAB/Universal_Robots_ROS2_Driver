@@ -30,6 +30,7 @@
   <depend>controller_manager</depend>
   <depend>controller_manager_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
@@ -43,6 +44,9 @@
   <depend>ur_dashboard_msgs</depend>
   <depend>ur_description</depend>
   <depend>ur_msgs</depend>
+  <depend>orocos_kdl</depend>
+  <depend>kdl_parser</depend>
+  <depend>urdf</depend>
 
   <exec_depend>force_torque_sensor_broadcaster</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
@@ -55,7 +59,6 @@
   <exec_depend>ros2_controllers_test_nodes</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>socat</exec_depend>
-  <exec_depend>urdf</exec_depend>
   <exec_depend>velocity_controllers</exec_depend>
   <exec_depend>xacro</exec_depend>
 

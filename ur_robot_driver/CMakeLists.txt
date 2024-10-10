@@ -23,6 +23,7 @@ find_package(backward_ros REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -33,13 +34,19 @@ find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(ur_client_library REQUIRED)
 find_package(ur_dashboard_msgs REQUIRED)
+find_package(orocos_kdl REQUIRED)
+find_package(kdl_parser REQUIRED)
 
-include_directories(include)
+include_directories(include
+  ${orocos_kdl_INCLUDE_DIRS}
+  ${kdl_parser_INCLUDE_DIRS}
+)
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_manager
   controller_manager_msgs
   geometry_msgs
+  sensor_msgs
   hardware_interface
   pluginlib
   rclcpp
@@ -49,6 +56,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   tf2_geometry_msgs
   ur_client_library
   ur_dashboard_msgs
+  urdf
 )
 
 add_library(ur_robot_driver_plugin
@@ -84,11 +92,25 @@ add_executable(dashboard_client
 target_link_libraries(dashboard_client ${catkin_LIBRARIES} ur_client_library::urcl)
 ament_target_dependencies(dashboard_client ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
+#
+# freedrive_node
+#
 add_executable(freedrive_node
   src/freedrive_node.cpp
 )
 target_link_libraries(freedrive_node ${catkin_LIBRARIES} ur_client_library::urcl)
 ament_target_dependencies(freedrive_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
+
+
+#
+# ur10e_position_control
+#
+add_executable(ur10e_position_control
+  src/ur10e_position_control.cpp
+  src/robot_kinematic.cpp
+)
+target_link_libraries(ur10e_position_control ${catkin_LIBRARIES}   ${orocos_kdl_LIBRARIES} ${kdl_parser_LIBRARIES} ur_client_library::urcl )
+ament_target_dependencies(ur10e_position_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS} orocos_kdl kdl_parser urdf)
 
 #
 # controller_stopper_node
@@ -105,7 +127,7 @@ add_executable(urscript_interface
 ament_target_dependencies(urscript_interface ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 install(
-  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node 
+  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node ur10e_position_control
   DESTINATION lib/${PROJECT_NAME}
 )
 
