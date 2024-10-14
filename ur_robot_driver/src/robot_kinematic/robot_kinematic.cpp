@@ -1,4 +1,4 @@
-#include "robot_kinematic.hpp"
+#include "robot_kinematic/robot_kinematic.hpp"
 
 // Costruttore che inizializza i membri dati
 RobotKinematic::RobotKinematic(const std::string& robot_description, 

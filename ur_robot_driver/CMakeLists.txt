@@ -107,7 +107,8 @@ ament_target_dependencies(freedrive_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${T
 #
 add_executable(ur10e_position_control
   src/ur10e_position_control.cpp
-  src/robot_kinematic.cpp
+  src/robot_kinematic/robot_kinematic.cpp
+  src/geometry_utils/geometry_utils.cpp
 )
 target_link_libraries(ur10e_position_control ${catkin_LIBRARIES}   ${orocos_kdl_LIBRARIES} ${kdl_parser_LIBRARIES} ur_client_library::urcl )
 ament_target_dependencies(ur10e_position_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS} orocos_kdl kdl_parser urdf)
