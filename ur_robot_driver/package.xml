@@ -45,8 +45,11 @@
   <depend>ur_description</depend>
   <depend>ur_msgs</depend>
   <depend>orocos_kdl</depend>
+  <depend>Eigen3</depend>
   <depend>kdl_parser</depend>
   <depend>urdf</depend>
+  <depend>geometry_lib</depend>
+  <depend>robot_kinematic</depend>
 
   <exec_depend>force_torque_sensor_broadcaster</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>

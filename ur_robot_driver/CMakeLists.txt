@@ -18,6 +18,8 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+link_directories(/usr/local/lib)
+
 find_package(ament_cmake REQUIRED)
 find_package(backward_ros REQUIRED)
 find_package(controller_manager REQUIRED)
@@ -36,10 +38,14 @@ find_package(ur_client_library REQUIRED)
 find_package(ur_dashboard_msgs REQUIRED)
 find_package(orocos_kdl REQUIRED)
 find_package(kdl_parser REQUIRED)
+find_package(geometry_lib REQUIRED)  # Ensure this matches the package name defined in geometry_lib's CMakeLists.txt
+find_package(robot_kinematic REQUIRED)  # Ensure this matches the package name defined in geometry_lib's CMakeLists.txt
 
 include_directories(include
   ${orocos_kdl_INCLUDE_DIRS}
   ${kdl_parser_INCLUDE_DIRS}
+  ${robot_kinematic_INCLUDE_DIRS}
+  ${geometry_lib_INCLUDE_DIRS}
 )
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS
@@ -92,6 +98,8 @@ add_executable(dashboard_client
 target_link_libraries(dashboard_client ${catkin_LIBRARIES} ur_client_library::urcl)
 ament_target_dependencies(dashboard_client ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
+#########################################################
+
 #
 # freedrive_node
 #
@@ -107,11 +115,11 @@ ament_target_dependencies(freedrive_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${T
 #
 add_executable(ur10e_position_control
   src/ur10e_position_control.cpp
-  src/robot_kinematic/robot_kinematic.cpp
-  src/geometry_utils/geometry_utils.cpp
 )
-target_link_libraries(ur10e_position_control ${catkin_LIBRARIES}   ${orocos_kdl_LIBRARIES} ${kdl_parser_LIBRARIES} ur_client_library::urcl )
-ament_target_dependencies(ur10e_position_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS} orocos_kdl kdl_parser urdf)
+target_link_libraries(ur10e_position_control ${catkin_LIBRARIES}   ${orocos_kdl_LIBRARIES} ${kdl_parser_LIBRARIES} ur_client_library::urcl geometry_lib robot_kinematic)
+ament_target_dependencies(ur10e_position_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS} orocos_kdl kdl_parser urdf std_msgs geometry_msgs)
+
+#########################################################
 
 #
 # controller_stopper_node
@@ -128,7 +136,7 @@ add_executable(urscript_interface
 ament_target_dependencies(urscript_interface ${${PROJECT_NAME}_EXPORTED_TARGETS} ${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 install(
-  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node ur10e_position_control
+  TARGETS dashboard_client controller_stopper_node urscript_interface freedrive_node ur10e_position_control 
   DESTINATION lib/${PROJECT_NAME}
 )
 
