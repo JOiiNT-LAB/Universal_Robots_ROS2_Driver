@@ -15,7 +15,8 @@ using namespace std::chrono_literals;
 class UrPositionControl : public rclcpp::Node
 {
 public:
-    UrPositionControl() : Node("ur10e_position_control")
+
+    UrPositionControl(double rate) : Node("ur10e_position_control"), rate_(rate)
     {
         auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
         while (!parameters_client->wait_for_service(1s)) {
@@ -32,12 +33,13 @@ public:
 
         std::string             root_name = "base_link_inertia";
         std::string             tip_name = "wrist_3_link";
-
         
-        ur_kin_ = std::make_shared<RobotKinematic>(robot_description_, root_name, tip_name);
+        ur_kin_ = std::make_shared<RobotKinematic>(robot_description_, root_name, tip_name, rate);
 
         // Publisher for the topic /robot_ur10e/current_pose
         current_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("current_pose", 10);
+        test_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("test_output_pose", 10);
+        joint_command_pub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/forward_position_controller/commands", 10);
 
         // Subscribe to the joint states topic
         joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
@@ -47,7 +49,7 @@ public:
 
         // Subscribe to the desired pose topic
         pose_des_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "pose_des", 10,
+            "/pose_des", 10,
             std::bind(&UrPositionControl::poseDesCallback, this, std::placeholders::_1)
         );
     }
@@ -97,7 +99,6 @@ public:
                     if(state_ != old_state_)
                     {
                         RCLCPP_INFO(this->get_logger(), "node state: %s", "UPDATE");
-
                         // Stop the info prompt in the run function
                         old_state_ = state_;
                     }
@@ -109,18 +110,33 @@ public:
 
     void init()
     {
-        desired_pos_  = current_pos_;
+        ur_kin_->Init();
+        desired_pos_ = current_pos_;
         desired_quat_ = current_quat_;
     }
 
     void update()
     {
-        // ur_kin_->ComputeDirectKinematic(ur_kin_->q_measured);
+        joint_command_msg_.data.clear();
         joint_command_ = ur_kin_->ComputeInverseKinematic(desired_pos_,desired_quat_);
         
-        // joint_command_msg_ = 
+        joint_command_msg_.data.push_back(joint_command_(0));
+        joint_command_msg_.data.push_back(joint_command_(1));
+        joint_command_msg_.data.push_back(joint_command_(2));
+        joint_command_msg_.data.push_back(joint_command_(3));
+        joint_command_msg_.data.push_back(joint_command_(4));
+        joint_command_msg_.data.push_back(joint_command_(5));
 
+        // for(int i = 0; i < 6; i++)
+        // {
+        //     std::cout << joint_command_msg_.data[i] << std::endl;
+        // }
 
+        auto result = ur_kin_->ComputeDirectKinematic(joint_command_);
+
+        auto test_output_pose = eigen_pose_to_pose_stamped(result.first, result.second, this->get_clock()->now(), "wrist_3_link");
+        test_pose_pub_->publish(test_output_pose);
+        joint_command_pub_->publish(joint_command_msg_);
     }
 
 private:
@@ -132,6 +148,8 @@ private:
     bool first_spin_ = true;
     bool joint_state_obtained_ = false;
 
+    double rate_;
+
     // KDL Variables
     KDL::JntArray joint_command_;
 
@@ -141,6 +159,8 @@ private:
 
     // ROS2 Publisher
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr current_pose_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr test_pose_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr joint_command_pub_;
 
     // ROS2 Subscribers
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
@@ -158,23 +178,21 @@ private:
     // Callback function for joint states
     void jointStateCallback(sensor_msgs::msg::JointState::UniquePtr joint_state_msg) 
     {       
-        ur_kin_->q_measured(0) = joint_state_msg->position[5];
-        ur_kin_->q_measured(1) = joint_state_msg->position[0];
-        ur_kin_->q_measured(2) = joint_state_msg->position[1];
-        ur_kin_->q_measured(3) = joint_state_msg->position[2];
-        ur_kin_->q_measured(4) = joint_state_msg->position[3];
-        ur_kin_->q_measured(5) = joint_state_msg->position[4];
+        ur_kin_->q_measured_(0) = joint_state_msg->position[5];
+        ur_kin_->q_measured_(1) = joint_state_msg->position[0];
+        ur_kin_->q_measured_(2) = joint_state_msg->position[1];
+        ur_kin_->q_measured_(3) = joint_state_msg->position[2];
+        ur_kin_->q_measured_(4) = joint_state_msg->position[3];
+        ur_kin_->q_measured_(5) = joint_state_msg->position[4];
 
         // Compute the direct kinematics
-
-        std::tie(current_pos_, current_quat_) = ur_kin_->ComputeDirectKinematic(ur_kin_->q_measured);
+        std::tie(current_pos_, current_quat_) = ur_kin_->ComputeDirectKinematic(ur_kin_->q_measured_);
 
         // Convert Eigen vector position and quaternion to geometry_msgs/PoseStamped
         current_pose_msg_ = eigen_pose_to_pose_stamped(current_pos_, current_quat_, this->get_clock()->now(), "wrist_3_link");
 
         // Publish the message to ROS
         current_pose_pub_->publish(current_pose_msg_);
-
         joint_state_obtained_ = true;
     }
 
@@ -197,13 +215,16 @@ private:
 int main(int argc, char * argv[])
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<UrPositionControl>();
+
+    double rate(100.0);
+    rclcpp::Rate ros_loop_rate(rate);  // 400 Hz loop
+    
+    auto node = std::make_shared<UrPositionControl>(rate);
 
     // Create the executor
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
 
-    rclcpp::Rate rate(1);  // 400 Hz loop
     
     // Main loop mimicking ROS 1's spinOnce()
     while (rclcpp::ok())
@@ -213,7 +234,7 @@ int main(int argc, char * argv[])
         executor.spin_some();
         
         // Sleep to maintain the loop rate
-        rate.sleep();
+        ros_loop_rate.sleep();
     }
 
     

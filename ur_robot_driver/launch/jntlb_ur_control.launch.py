@@ -165,8 +165,9 @@ def launch_setup():
         "io_and_status_controller",
         "speed_scaling_state_broadcaster",
         "force_torque_sensor_broadcaster",
+        "forward_position_controller",
     ]
-    controllers_inactive = ["forward_position_controller"]
+    controllers_inactive = []
 
     controller_spawners = [controller_spawner(controllers_active)] + [
         controller_spawner(controllers_inactive, active=False)
@@ -317,7 +318,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "headless_mode",
-            default_value="false",
+            default_value="true",
             description="Enable headless mode for robot control",
         )
     )
@@ -338,7 +339,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "activate_joint_controller",
-            default_value="true",
+            default_value="false",
             description="Activate loaded joint controller.",
         )
     )
