@@ -62,6 +62,13 @@ def launch_setup():
     tool_device_name = LaunchConfiguration("tool_device_name")
     tool_tcp_port = LaunchConfiguration("tool_tcp_port")
 
+    ur10e_position_control_node = Node(
+        package="ur_robot_driver",
+        executable="ur10e_position_control",
+        name="ur10e_position_control",
+        output="screen",
+    )
+
     freedrive_node = Node(
         package="ur_robot_driver",
         executable="freedrive_node",
@@ -219,6 +226,7 @@ def launch_setup():
         rviz_node,
         initial_joint_controller_spawner_stopped,
         initial_joint_controller_spawner_started,
+        ur10e_position_control_node,
     ] + controller_spawners
 
     return nodes_to_start
@@ -344,7 +352,7 @@ def generate_launch_description():
         )
     )
     declared_arguments.append(
-        DeclareLaunchArgument("launch_rviz", default_value="true", description="Launch RViz?")
+        DeclareLaunchArgument("launch_rviz", default_value="false", description="Launch RViz?")
     )
     declared_arguments.append(
         DeclareLaunchArgument(

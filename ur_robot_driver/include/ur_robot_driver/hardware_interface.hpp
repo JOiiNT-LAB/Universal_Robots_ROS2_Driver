@@ -48,6 +48,8 @@
 // ros2 service
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "std_msgs/msg/bool.hpp"
+
 // ros2_control hardware_interface
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
@@ -132,6 +134,9 @@ private:
   void handleFreedrive(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
                        std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
+  std_msgs::msg::Bool freedrive_status_msg_;
+
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr freedrive_status_pub_;
   rclcpp::Service<std_srvs::srv::Empty>::SharedPtr freedrive_service_;
 
   static void listen_freedrive_client(std::shared_ptr<rclcpp::Node> node);

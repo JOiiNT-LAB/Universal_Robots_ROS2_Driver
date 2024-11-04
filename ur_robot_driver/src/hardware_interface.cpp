@@ -76,6 +76,10 @@ URPositionHardwareInterface::on_init(const hardware_interface::HardwareInfo& sys
     std::bind(&URPositionHardwareInterface::handleFreedrive, this, std::placeholders::_1, std::placeholders::_2)
   );
 
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr freedrive_status_pub_ = 
+      freedrive_node_->create_publisher<std_msgs::msg::Bool>("freedrive_status", 10);
+
+
   if (hardware_interface::SystemInterface::on_init(system_info) != hardware_interface::CallbackReturn::SUCCESS) {
     return hardware_interface::CallbackReturn::ERROR;
   }
@@ -778,6 +782,7 @@ void URPositionHardwareInterface::handleFreedrive(const std::shared_ptr<std_srvs
 {
   freedrive_running_ = !freedrive_running_;
 
+
   if(freedrive_running_){
     ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_START);
     RCLCPP_INFO(rclcpp::get_logger("hardware_interface"), "Freedrive mode: ENABLED!");
@@ -785,6 +790,8 @@ void URPositionHardwareInterface::handleFreedrive(const std::shared_ptr<std_srvs
     ur_driver_->writeFreedriveControlMessage(urcl::control::FreedriveControlMessage::FREEDRIVE_STOP);
     RCLCPP_INFO(rclcpp::get_logger("hardware_interface"), "Freedrive mode: DISABLED!");
   }
+  // freedrive_status_msg_.data = freedrive_running_;
+  // freedrive_status_pub_->publish(freedrive_status_msg_);
 }
 
 void URPositionHardwareInterface::transformForceTorque()
